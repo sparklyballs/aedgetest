@@ -1,2 +1,2 @@
-test version of kujenga docker image
+test version of aedge docker image
 
