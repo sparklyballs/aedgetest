@@ -14,8 +14,8 @@ cd /aedge-blockchain || exit 1
 aedge init --fix-ssl-permissions
 
 if [[ ${testnet} == 'true' ]]; then
-   echo "configure testnet"
-   aedge configure --testnet true
+  echo "configure testnet"
+  aedge configure --testnet true
 fi
 
 if [[ ${keys} == "persistent" ]]; then
@@ -26,7 +26,7 @@ elif [[ ${keys} == "generate" ]]; then
 elif [[ ${keys} == "copy" ]]; then
   if [[ -z ${ca} ]]; then
     echo "A path to a copy of the farmer peer's ssl/ca required."
-	exit
+    exit
   else
   aedge init -c "${ca}"
   fi
@@ -35,12 +35,18 @@ else
 fi
 
 for p in ${plots_dir//:/ }; do
-    mkdir -p "${p}"
-    if [[ ! $(ls -A "$p") ]]; then
-        echo "Plots directory '${p}' appears to be empty, try mounting a plot directory with the docker -v command"
-    fi
-    aedge plots add -d "${p}"
+  mkdir -p "${p}"
+  if [[ ! $(ls -A "$p") ]]; then
+    echo "Plots directory '${p}' appears to be empty, try mounting a plot directory with the docker -v command"
+  fi
+  aedge plots add -d "${p}"
 done
+
+aedge configure --upnp "${upnp}"
+
+if [[ -n "${log_level}" ]]; then
+  aedge configure --log-level "${log_level}"
+fi
 
 if [[ -n "${peer_count}" ]]; then
   aedge configure --set-peer-count "${peer_count}"
@@ -50,10 +56,30 @@ if [[ -n "${outbound_peer_count}" ]]; then
   aedge configure --set_outbound-peer-count "${outbound_peer_count}"
 fi
 
-if [[ -n "${log_level}" ]]; then
-  aedge configure --log-level "${log_level}"
+if [[ -n ${farmer_address} && -n ${farmer_port} ]]; then
+  aedge configure --set-farmer-peer "${farmer_address}:${farmer_port}"
 fi
 
-sed -i 's/localhost/127.0.0.1/g' "$CONFIG_ROOT/config/config.yaml"
+sed -i 's/localhost/127.0.0.1/g' "$AEDGE_ROOT/config/config.yaml"
+
+if [[ ${log_to_file} != 'true' ]]; then
+  sed -i 's/log_stdout: false/log_stdout: true/g' "$AEDGE_ROOT/config/config.yaml"
+else
+  sed -i 's/log_stdout: true/log_stdout: false/g' "$AEDGE_ROOT/config/config.yaml"
+fi
+
+# Map deprecated legacy startup options.
+if [[ ${farmer} == "true" ]]; then
+  service="farmer-only"
+elif [[ ${harvester} == "true" ]]; then
+  service="harvester"
+fi
+
+if [[ ${service} == "harvester" ]]; then
+  if [[ -z ${farmer_address} || -z ${farmer_port} || -z ${ca} ]]; then
+    echo "A farmer peer address, port, and ca path are required."
+    exit
+  fi
+fi
 
 exec "$@"
